@@ -11,5 +11,8 @@ class Deck:
     def shuffle(self):
         random.shuffle(self.cards)
 
+    def deal(self, num_cards):
+        return [self.cards.pop() for _ in range(num_cards) if self.cards]
+
     def __repr__(self):
         return f"Deck of {len(self.cards)} cards"

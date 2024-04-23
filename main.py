@@ -13,21 +13,30 @@ def display_played_cards(played_cards):
     else:
         print("No cards have been played yet.")
 
-
+def card_rank(card):
+    rank_order = {
+        '2': 15, 'Ace': 14, 'King': 13, 'Queen': 12, 'Jack': 11,
+        '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3
+    }
+    return rank_order[card.rank]
 
 def main():
     deck = Deck()
     deck.shuffle()
 
-    num_players = int(input("Enter the number of players: "))
+    try:
+        num_players = int(input("Enter the number of players: "))
+    except ValueError:
+        print("Invalid number of players. Using 4 players as default.")
+        num_players = 4    
+        
     players = [Player(f"Player {i + 1}") for i in range(num_players)]
 
     # Distribute and sort cards
     while deck.cards:
         for player in players:
-            if not deck.cards:
-                break
-            player.receive_card(deck.cards.pop(0))
+            cards_to_deal = min(1, len(deck.cards))
+            player.receive_card(deck.deal(cards_to_deal)[0])
         for player in players:
             player.sort_hand()
 
@@ -35,30 +44,51 @@ def main():
     display_hands(players)
     played_cards = []  # List to keep track of played cards
     skip_next_player = False  # Flag to determine if the next player should be skipped
-    last_played_card = None  # Track the last played card
 
     # Game loop - each player plays one card per turn
     player_index = 0  # Start with the first player
     while any(player.hand for player in players):
-        current_player = players[player_index]
-        if not current_player.hand:
+        if skip_next_player:
+            print(f"Skipping {players[player_index].name}'s turn.")
+            skip_next_player = False
+            player_index = (player_index + 1) % num_players
             continue
 
+        current_player = players[player_index]
+        if not current_player.hand:
+            player_index = (player_index + 1) % num_players
+            continue
 
-        for player in players:
-            if not player.hand:
-                continue
-            print(f"\n{player.name}'s turn.")
-            print(player.show_hand())
-            card_index = int(input("Choose a card index to play: "))
-            card = player.play_card(card_index)
-            if card:
-                print(f"{player.name} played {card}.")
-                played_cards.append(card)
-            else:
-                print("Invalid card index.")
-            display_played_cards(played_cards)
-            # display_hands(players)
+        print(f"\n{current_player.name}'s turn.")
+        print(current_player.show_hand())
+        player_input = input("Enter a card index to play or type 'pass' to pass your turn: ").strip().lower()
+
+        if player_input == 'pass':
+            print(f"{current_player.name} has decided to pass.")
+        else:
+            try:
+                card_index = int(player_input)
+                card = current_player.hand[card_index]
+                if played_cards and card_rank(card) < card_rank(played_cards[-1]):
+                    print("Cannot play a lower ranked card. Try again or pass.")
+                    continue
+
+                card = current_player.play_card(card_index)
+                if card:
+                    print(f"{current_player.name} played {card}.")
+                    played_cards.append(card)
+                    display_played_cards(played_cards)
+
+                    # Check if the played card matches the rank of the last card on the table
+                    if len(played_cards) > 1 and card.rank == played_cards[-2].rank:
+                        skip_next_player = True
+                        print(f"The next player will be skipped because {current_player.name} played a matching rank!")
+                else:
+                    print("Invalid card index. Please try again.")
+            except ValueError:
+                print("Invalid input. Please enter a valid integer for the card index or 'pass'.")
+
+        player_index = (player_index + 1) % num_players
 
 if __name__ == "__main__":
     main()
