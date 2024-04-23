@@ -44,6 +44,8 @@ def main():
     display_hands(players)
     played_cards = []  # List to keep track of played cards
     skip_next_player = False  # Flag to determine if the next player should be skipped
+    last_player_to_play_a_card = None
+    pass_count = 0  # Number of consecutive passes
 
     # Game loop - each player plays one card per turn
     player_index = 0  # Start with the first player
@@ -65,9 +67,15 @@ def main():
 
         if player_input == 'pass':
             print(f"{current_player.name} has decided to pass.")
+            pass_count += 1
         else:
             try:
                 card_index = int(player_input)
+                
+                if card_index < 0 or card_index >= len(current_player.hand):
+                    print("Invalid card index. Index is out of range. Please try again.")
+                    continue
+                
                 card = current_player.hand[card_index]
                 if played_cards and card_rank(card) < card_rank(played_cards[-1]):
                     print("Cannot play a lower ranked card. Try again or pass.")
@@ -78,6 +86,8 @@ def main():
                     print(f"{current_player.name} played {card}.")
                     played_cards.append(card)
                     display_played_cards(played_cards)
+                    last_player_to_play_a_card = player_index
+                    pass_count = 0  # Reset pass count since a card was played
 
                     # Check if the played card matches the rank of the last card on the table
                     if len(played_cards) > 1 and card.rank == played_cards[-2].rank:
@@ -87,6 +97,15 @@ def main():
                     print("Invalid card index. Please try again.")
             except ValueError:
                 print("Invalid input. Please enter a valid integer for the card index or 'pass'.")
+                continue
+        
+        # If all other players have passed, clear the trick and start new from the last player to play
+        if pass_count >= len(players) - 1:
+            print("All other players have passed. Clearing the trick and starting new from the last player to play.")
+            played_cards.clear()
+            player_index = last_player_to_play_a_card
+            pass_count = 0
+            continue  # Continue without incrementing the player index
 
         player_index = (player_index + 1) % num_players
 
