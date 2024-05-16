@@ -31,6 +31,9 @@ def main():
         num_players = 4    
         
     players = [Player(f"Player {i + 1}") for i in range(num_players)]
+    active_players = list(range(num_players))  # Indexes of players who are still playing
+    finished_players = []  # Track finished players and their ranks
+    titles = ["President", "Vice President", "Neutral", "Vice Scum", "Scum"]
 
     # Distribute and sort cards
     while deck.cards:
@@ -45,69 +48,108 @@ def main():
     played_cards = []  # List to keep track of played cards
     skip_next_player = False  # Flag to determine if the next player should be skipped
     last_player_to_play_a_card = None
-    pass_count = 0  # Number of consecutive passes
+    current_trick_size = 0  # Number of cards that must be played in the current trick
 
     # Game loop - each player plays one card per turn
     player_index = 0  # Start with the first player
-    while any(player.hand for player in players):
+    
+    # As long as more than one player remains active
+    while len(active_players) > 1:  
+        current_player_index = active_players[player_index]
+        current_player = players[current_player_index]
+
+        if not current_player.hand:
+            player_index = (player_index + 1) % len(active_players)
+            continue
+
+        # If player plays the same rank as one thats on the table, skip nex player
         if skip_next_player:
             print(f"Skipping {players[player_index].name}'s turn.")
             skip_next_player = False
-            player_index = (player_index + 1) % num_players
+            player_index = (player_index + 1) % len(active_players)
             continue
 
-        current_player = players[player_index]
-        if not current_player.hand:
-            player_index = (player_index + 1) % num_players
-            continue
+        # current_player_index = active_players[player_index]
+        # current_player = players[current_player_index]
 
+        # If the current player is the same as the last player to play a card, start a new trick
+        if current_player_index == last_player_to_play_a_card:
+            print(f"\nTrick over. {current_player.name} starts a new trick.")
+            played_cards.clear()
+            current_trick_size = 0
         print(f"\n{current_player.name}'s turn.")
         print(current_player.show_hand())
-        player_input = input("Enter a card index to play or type 'pass' to pass your turn: ").strip().lower()
+
+        if current_trick_size == 0:  # First player in the trick chooses the number of cards to play
+            player_input = input("Enter card indices to play separated by space or type 'pass' to pass your turn: ").strip().lower()
+        else:  # Subsequent players must match the number of cards
+            player_input = input(f"Enter {current_trick_size} card indices to play separated by space or type 'pass' to pass your turn: ").strip().lower()
+        
+        # player_input = input(f"Enter {current_trick_size} card indices to play separated by space or type 'pass' to pass your turn: ").strip().lower()
 
         if player_input == 'pass':
             print(f"{current_player.name} has decided to pass.")
-            pass_count += 1
         else:
             try:
-                card_index = int(player_input)
-                
-                if card_index < 0 or card_index >= len(current_player.hand):
-                    print("Invalid card index. Index is out of range. Please try again.")
+                card_indices = list(map(int, player_input.split()))   
+
+                # Set the trick size based on the first player's choice
+                if current_trick_size == 0:
+                    current_trick_size = len(card_indices)
+
+                if len(card_indices) != current_trick_size:
+                    print(f"You must play exactly {current_trick_size} cards. Please try again.")
                     continue
                 
-                card = current_player.hand[card_index]
-                if played_cards and card_rank(card) < card_rank(played_cards[-1]):
-                    print("Cannot play a lower ranked card. Try again or pass.")
+                selected_cards = [current_player.hand[i] for i in card_indices]
+                selected_ranks = [card.rank for card in selected_cards]
+
+                if len(set(selected_ranks)) != 1:
+                    print("All selected cards must be of the same rank. Please try again.")
                     continue
 
-                card = current_player.play_card(card_index)
-                if card:
-                    print(f"{current_player.name} played {card}.")
-                    played_cards.append(card)
-                    display_played_cards(played_cards)
+                if played_cards and card_rank(selected_cards[0]) < card_rank(played_cards[-1][0]):
+                    print("Cannot play lower ranked cards. Try again or pass.")
+                    continue
+
+                for index in sorted(card_indices, reverse=True):
+                    current_player.play_card(index)
+                
+                played_cards.append(selected_cards)
+                display_played_cards(played_cards)
+
+                if not current_player.hand:
+                    print(f"{current_player.name} has finished all their cards!")
+                    finished_players.append(current_player)
+                    active_players.remove(current_player_index)
+                    # End the trick and start a new one with the next player
+                    played_cards.clear()
+                    current_trick_size = 0
+                    player_index = player_index % len(active_players)
+                    print(f"\n{players[active_players[player_index]].name} starts a new trick.")
+                    continue
+
+                if current_player_index in active_players:
                     last_player_to_play_a_card = player_index
-                    pass_count = 0  # Reset pass count since a card was played
 
-                    # Check if the played card matches the rank of the last card on the table
-                    if len(played_cards) > 1 and card.rank == played_cards[-2].rank:
-                        skip_next_player = True
-                        print(f"The next player will be skipped because {current_player.name} played a matching rank!")
-                else:
-                    print("Invalid card index. Please try again.")
+                if len(played_cards) > 1 and selected_ranks[0] == played_cards[-2][0].rank:
+                    skip_next_player = True
+                    print(f"The next player will be skipped because {current_player.name} played a matching rank!")
+
             except ValueError:
                 print("Invalid input. Please enter a valid integer for the card index or 'pass'.")
                 continue
         
-        # If all other players have passed, clear the trick and start new from the last player to play
-        if pass_count >= len(players) - 1:
-            print("All other players have passed. Clearing the trick and starting new from the last player to play.")
-            played_cards.clear()
-            player_index = last_player_to_play_a_card
-            pass_count = 0
-            continue  # Continue without incrementing the player index
+        player_index = (player_index + 1) % len(active_players)
 
-        player_index = (player_index + 1) % num_players
+    # The last player who hasn't finished becomes the final ranked player
+    finished_players.extend(players[i] for i in active_players)
+
+    # All players have finished, print final rankings
+    for idx, player in enumerate(finished_players):
+        title = titles[idx] if idx < len(titles) else "Neutral player"
+        print(f"{player.name} is the {title}.")
+
 
 if __name__ == "__main__":
     main()
