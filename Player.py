@@ -15,7 +15,9 @@ class Player:
             self.hand.sort(key=lambda card: rank_order[card.rank])
 
     def show_hand(self):
-        return f"{self.name}'s hand: {', '.join(map(str, self.hand))}"
+        # Include index numbers starting from 1
+        formatted_hand = "\n".join([f"{index}. {card}" for index, card in enumerate(self.hand)])
+        return f"{self.name}'s hand: \n{formatted_hand}"
             
     def play_card(self, card_index):
         try:
