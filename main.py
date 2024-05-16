@@ -69,9 +69,6 @@ def main():
             player_index = (player_index + 1) % len(active_players)
             continue
 
-        # current_player_index = active_players[player_index]
-        # current_player = players[current_player_index]
-
         # If the current player is the same as the last player to play a card, start a new trick
         if current_player_index == last_player_to_play_a_card:
             print(f"\nTrick over. {current_player.name} starts a new trick.")
@@ -92,6 +89,11 @@ def main():
         else:
             try:
                 card_indices = list(map(int, player_input.split()))   
+
+                # Check if indices are valid
+                if any(index < 0 or index >= len(current_player.hand) for index in card_indices):
+                    print("Invalid card indices. Please try again.")
+                    continue
 
                 # Set the trick size based on the first player's choice
                 if current_trick_size == 0:
@@ -118,6 +120,8 @@ def main():
                 played_cards.append(selected_cards)
                 display_played_cards(played_cards)
 
+                last_player_to_play_a_card = current_player_index
+
                 if not current_player.hand:
                     print(f"{current_player.name} has finished all their cards!")
                     finished_players.append(current_player)
@@ -125,12 +129,10 @@ def main():
                     # End the trick and start a new one with the next player
                     played_cards.clear()
                     current_trick_size = 0
-                    player_index = player_index % len(active_players)
-                    print(f"\n{players[active_players[player_index]].name} starts a new trick.")
+                    if len(active_players) > 1:
+                        player_index = player_index % len(active_players)
+                        print(f"\n{players[active_players[player_index]].name} starts a new trick.")
                     continue
-
-                if current_player_index in active_players:
-                    last_player_to_play_a_card = player_index
 
                 if len(played_cards) > 1 and selected_ranks[0] == played_cards[-2][0].rank:
                     skip_next_player = True
@@ -145,9 +147,29 @@ def main():
     # The last player who hasn't finished becomes the final ranked player
     finished_players.extend(players[i] for i in active_players)
 
-    # All players have finished, print final rankings
+    # Trick over
+    print(f"\nTrick over! Final standings:\n")
+
+    # Assign titles based on the number of players
+    num_finished_players = len(finished_players)
     for idx, player in enumerate(finished_players):
-        title = titles[idx] if idx < len(titles) else "Neutral player"
+        if num_finished_players == 4:
+            titles_to_assign = ["President", "Vice President", "Vice Scum", "Scum"]
+        else:
+            if idx == 0:
+                title = "President"
+            elif idx == 1:
+                title = "Vice President"
+            elif idx == num_finished_players - 2:
+                title = "Vice Scum"
+            elif idx == num_finished_players - 1:
+                title = "Scum"
+            else:
+                title = "Neutral"
+            print(f"{player.name} is the {title}.")
+            continue
+
+        title = titles_to_assign[idx] if idx < len(titles_to_assign) else "Neutral player"
         print(f"{player.name} is the {title}.")
 
 
