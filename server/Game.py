@@ -1,6 +1,8 @@
+import asyncio
 from Deck import Deck
 from Player import Player
 from Trick import Trick
+import json
 
 class Game:
     def __init__(self):
@@ -9,15 +11,13 @@ class Game:
         self.titles = ["President", "Vice President", "Neutral", "Vice Scum", "Scum"]
         self.num_tricks = 0
 
-    def setup(self):
-        try:
-            self.num_players = int(input("Enter the number of players: "))
-        except ValueError:
-            print("Invalid number of players. Using 4 players as default.")
-            self.num_players = 4
-
-        self.players = [Player(f"Player {i + 1}") for i in range(self.num_players)]
-
+    def setup(self, num_players):
+        self.num_players = num_players
+        self.players = []
+    
+    def add_player(self, player_name):
+        if len(self.players) < self.num_players:
+            self.players.append(Player(player_name))
 
     def distribute_cards(self):
         deck = Deck()
@@ -60,25 +60,67 @@ class Game:
                     title = "Neutral"
                 print(f"{player.name} is the {title}.")
 
-    def play_game(self):
-        self.setup()
+    async def play_game(self, websocket, num_players):
+        self.setup(num_players)
+        self.distribute_cards()
 
-        while True:
-            self.distribute_cards()
-            self.display_hands()
-
-            finished_players = []
-            while len(finished_players) < self.num_players:
-                trick_finished_players = self.play_trick()
-                finished_players.extend(trick_finished_players)
-                if len(finished_players) == self.num_players:
-                    break
-
-            self.assign_titles(finished_players)
-
-            play_again = input("Do you want to play another game? (yes/no): ").strip().lower()
-            if play_again != 'yes':
+        finished_players = []
+        while len(finished_players) < self.num_players:
+            trick_finished_players = await self.play_trick()
+            finished_players.extend(trick_finished_players)
+            if len(finished_players) == self.num_players:
                 break
 
-            for player in self.players:
-                player.hand.clear()  # Clear the players' hands for the next game
+        self.assign_titles(finished_players)
+        return finished_players
+
+    def get_game_state(self):
+        game_state = {
+            "type": "game_state",
+            "players": [
+                {
+                    "name": player.name,
+                    "hand": [str(card) for card in player.hand]
+                }
+                for player in self.players
+            ],
+            "played_cards": [[str(card) for card in cards] for cards in self.trick.played_cards],
+            "current_player": self.players[self.trick.active_players[0]].name if self.trick.active_players else None
+        }
+        return game_state
+
+    async def handle_message(self, websocket, message):
+        data = json.loads(message)
+        if data["action"] == "join":
+            player_name = data["name"]
+            player = Player(player_name)
+            self.players.append(player)
+
+            if len(self.players) == self.num_players:
+                await self.start_game()
+
+        elif data["action"] == "play":
+            card_indices = data["indices"]
+            player_name = data["name"]
+            current_player = next(p for p in self.players if p.name == player_name)
+            await self.trick.play_card(current_player, card_indices)
+            await self.update_game_state(websocket)
+
+    async def update_game_state(self):
+        game_state = self.get_game_state()
+        message = json.dumps(game_state)
+        await asyncio.gather(*[client.send(message) for client in self.clients])
+
+    async def start_game(self):
+        self.distribute_cards()
+        self.trick = Trick(self.players)
+        await self.update_game_state()
+
+    async def handler(self, websocket, path):
+        await self.register(websocket)
+
+        try:
+            async for message in websocket:
+                await self.handle_message(websocket, message)
+        finally:
+            await self.unregister(websocket)
