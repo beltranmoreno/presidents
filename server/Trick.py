@@ -9,6 +9,7 @@ class Trick:
         self.current_trick_size = 0
         self.last_player_to_play = None
         self.skip_next_player = False
+        self.current_player_index = 0
 
     def display_played_cards(self):
         if self.played_cards:
@@ -24,7 +25,82 @@ class Trick:
             '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3
         }
         return rank_order[card.rank]
+    
+    async def play_card(self, current_player, card_indices):
+        if not current_player.hand:
+            return
 
+        current_player_index = self.players.index(current_player)
+
+        # Start a new trick if the same player is to play again
+        if current_player_index == self.last_player_to_play:
+            self.played_cards.clear()
+            self.current_trick_size = 0
+
+        # Check if indices are valid
+        if any(index < 0 or index >= len(current_player.hand) for index in card_indices):
+            return
+
+        if self.current_trick_size == 0:
+            self.current_trick_size = len(card_indices)
+
+        if len(card_indices) != self.current_trick_size:
+            return
+
+        selected_cards = [current_player.hand[i] for i in card_indices]
+        selected_ranks = [card.rank for card in selected_cards]
+
+        if len(set(selected_ranks)) != 1:
+            return
+
+        if self.played_cards and self.card_rank(selected_cards[0]) < self.card_rank(self.played_cards[-1][0]):
+            return
+
+        for index in sorted(card_indices, reverse=True):
+            current_player.play_card(index)
+
+        self.played_cards.append(selected_cards)
+        self.display_played_cards()
+
+        self.last_player_to_play = current_player_index
+
+        if not current_player.hand:
+            self.finished_players.append(current_player)
+            self.active_players.remove(current_player_index)
+            # End the trick and start a new one with the next player
+            self.played_cards.clear()
+            self.current_trick_size = 0
+            if len(self.active_players) > 1:
+                self.next_player()
+                return self.finished_players
+            # else:
+            #     return
+
+        if len(self.played_cards) > 1 and selected_ranks[0] == self.played_cards[-2][0].rank:
+            self.skip_next_player = True
+
+        self.next_player()
+        return self.finished_players
+
+    async def pass_turn(self):
+        self.next_player()
+        
+    def next_player(self):
+        self.current_player_index = (self.current_player_index + 1) % len(self.active_players)
+        if self.skip_next_player:
+            self.current_player_index = (self.current_player_index + 1) % len(self.active_players)
+            self.skip_next_player = False
+
+        if self.current_player_index == self.last_player_to_play:
+            self.played_cards.clear()
+            self.current_trick_size = 0
+
+    def get_current_player(self):
+        if self.active_players:
+            return self.players[self.active_players[self.current_player_index]]
+        return None 
+    
+    
     def play(self):
         player_index = 0
         while len(self.active_players) > 1:
@@ -123,59 +199,4 @@ class Trick:
 
         return self.finished_players
     
-    async def play_card(self, current_player, card_indices):
-        if not current_player.hand:
-            return
-
-        current_player_index = self.players.index(current_player)
-
-        # Skip next player if required
-        if self.skip_next_player:
-            self.skip_next_player = False
-            return
-
-        # Start a new trick if the same player is to play again
-        if current_player_index == self.last_player_to_play:
-            self.played_cards.clear()
-            self.current_trick_size = 0
-
-        # Check if indices are valid
-        if any(index < 0 or index >= len(current_player.hand) for index in card_indices):
-            return
-
-        if self.current_trick_size == 0:
-            self.current_trick_size = len(card_indices)
-
-        if len(card_indices) != self.current_trick_size:
-            return
-
-        selected_cards = [current_player.hand[i] for i in card_indices]
-        selected_ranks = [card.rank for card in selected_cards]
-
-        if len(set(selected_ranks)) != 1:
-            return
-
-        if self.played_cards and self.card_rank(selected_cards[0]) <= self.card_rank(self.played_cards[-1][0]):
-            return
-
-        for index in sorted(card_indices, reverse=True):
-            current_player.play_card(index)
-
-        self.played_cards.append(selected_cards)
-        self.last_player_to_play = current_player_index
-
-        if not current_player.hand:
-            self.finished_players.append(current_player)
-            self.active_players.remove(current_player_index)
-            # End the trick and start a new one with the next player
-            self.played_cards.clear()
-            self.current_trick_size = 0
-            if len(self.active_players) > 1:
-                self.skip_next_player = False
-            else:
-                return
-
-        if len(self.played_cards) > 1 and selected_ranks[0] == self.played_cards[-2][0].rank:
-            self.skip_next_player = True
-
-        return self.finished_players
+    
