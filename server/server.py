@@ -55,8 +55,7 @@ class GameServer:
                 if len(self.game.players) == self.num_players:
                     print('Starting game...')
                     await self.start_game()
-                # else:
-                #     await websocket.send(json.dumps({"type": "error", "message": "Game is full."}))
+                
 
             elif data["action"] == "play" and self.game_started:
                 card_indices = data["indices"]
@@ -64,6 +63,11 @@ class GameServer:
                 current_player = next(p for p in self.game.players if p.name == player_name)
                 await self.game.trick.play_card(current_player, card_indices)
                 await self.update_game_state()
+
+            elif data["action"] == "pass" and self.game_started:
+                await self.game.trick.pass_turn()
+                await self.update_game_state()
+        
         except Exception as e:
             print(f"Error handling message: {e}")
 

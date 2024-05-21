@@ -36,8 +36,8 @@ class Game:
             print(player.show_hand())
 
     def play_trick(self):
-        trick = Trick(self.players)
-        return trick.play()
+        self.trick = Trick(self.players)
+        return self.trick.play()
 
     def assign_titles(self, finished_players):
         num_finished_players = len(finished_players)
@@ -80,31 +80,39 @@ class Game:
             "players": [
                 {
                     "name": player.name,
-                    "hand": [str(card) for card in player.hand]
+                    "hand": player.show_hand()
                 }
                 for player in self.players
             ],
             "played_cards": [[str(card) for card in cards] for cards in self.trick.played_cards],
-            "current_player": self.players[self.trick.active_players[0]].name if self.trick.active_players else None
+            "current_player": self.trick.get_current_player().name if self.trick.get_current_player() else None
         }
         return game_state
 
-    async def handle_message(self, websocket, message):
-        data = json.loads(message)
-        if data["action"] == "join":
-            player_name = data["name"]
-            player = Player(player_name)
-            self.players.append(player)
+    async def handle_message(self, message):
+        try:
+            data = json.loads(message)
+            if data["action"] == "join":
+                player_name = data["name"]
+                player = Player(player_name)
+                self.players.append(player)
 
-            if len(self.players) == self.num_players:
-                await self.start_game()
+                if len(self.players) == self.num_players:
+                    await self.start_game()
 
-        elif data["action"] == "play":
-            card_indices = data["indices"]
-            player_name = data["name"]
-            current_player = next(p for p in self.players if p.name == player_name)
-            await self.trick.play_card(current_player, card_indices)
-            await self.update_game_state(websocket)
+            elif data["action"] == "play":
+                card_indices = data["indices"]
+                player_name = data["name"]
+                current_player = next(p for p in self.players if p.name == player_name)
+                await self.trick.play_card(current_player, card_indices)
+                await self.update_game_state()
+
+            elif data["action"] == "pass":
+                await self.trick.pass_turn()
+                await self.update_game_state()
+        
+        except Exception as e:
+            print(f"Error handling message: {e}")
 
     async def update_game_state(self):
         game_state = self.get_game_state()
