@@ -89,7 +89,7 @@ class Game:
         }
         return game_state
 
-    async def handle_message(self, message):
+    async def handle_message(self, websocket, message):
         try:
             data = json.loads(message)
             if data["action"] == "join":
@@ -104,7 +104,9 @@ class Game:
                 card_indices = data["indices"]
                 player_name = data["name"]
                 current_player = next(p for p in self.players if p.name == player_name)
-                await self.trick.play_card(current_player, card_indices)
+                finished_players, error_message = await self.trick.play_card(current_player, card_indices)
+                if error_message:
+                    await websocket.send(json.dumps({"type": "error", "message": error_message}))
                 await self.update_game_state()
 
             elif data["action"] == "pass":

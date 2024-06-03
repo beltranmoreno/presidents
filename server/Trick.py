@@ -28,7 +28,7 @@ class Trick:
     
     async def play_card(self, current_player, card_indices):
         if not current_player.hand:
-            return
+            return None, "Player has no cards to play."
 
         current_player_index = self.players.index(current_player)
 
@@ -39,22 +39,22 @@ class Trick:
 
         # Check if indices are valid
         if any(index < 0 or index >= len(current_player.hand) for index in card_indices):
-            return
+            return None, "Invalid card indices. Please try again."
 
         if self.current_trick_size == 0:
             self.current_trick_size = len(card_indices)
 
         if len(card_indices) != self.current_trick_size:
-            return
+            return None, f"You must play exactly {self.current_trick_size} cards. Please try again."
 
         selected_cards = [current_player.hand[i] for i in card_indices]
         selected_ranks = [card.rank for card in selected_cards]
 
         if len(set(selected_ranks)) != 1:
-            return
+            return None, "All selected cards must be of the same rank. Please try again."
 
         if self.played_cards and self.card_rank(selected_cards[0]) < self.card_rank(self.played_cards[-1][0]):
-            return
+            return None, "Cannot play lower ranked cards. Try again or pass."
 
         for index in sorted(card_indices, reverse=True):
             current_player.play_card(index)
@@ -72,15 +72,15 @@ class Trick:
             self.current_trick_size = 0
             if len(self.active_players) > 1:
                 self.next_player()
-                return self.finished_players
-            # else:
-            #     return
+                return self.finished_players, f"\n{self.players[self.active_players[self.current_player_index]].name} starts a new trick."
+            return self.finished_players, None
 
         if len(self.played_cards) > 1 and selected_ranks[0] == self.played_cards[-2][0].rank:
             self.skip_next_player = True
+            return None, f"The next player will be skipped because {current_player.name} played a matching rank!"
 
         self.next_player()
-        return self.finished_players
+        return self.finished_players, None
 
     async def pass_turn(self):
         self.next_player()
