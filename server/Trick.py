@@ -28,7 +28,7 @@ class Trick:
     
     async def play_card(self, current_player, card_indices):
         if not current_player.hand:
-            return
+            return "error", "Player has no cards to play."
 
         current_player_index = self.players.index(current_player)
 
@@ -39,22 +39,22 @@ class Trick:
 
         # Check if indices are valid
         if any(index < 0 or index >= len(current_player.hand) for index in card_indices):
-            return
+            return "error", "Invalid card indices. Please try again."
 
         if self.current_trick_size == 0:
             self.current_trick_size = len(card_indices)
 
         if len(card_indices) != self.current_trick_size:
-            return
+            return "error", f"You must play exactly {self.current_trick_size} cards. Please try again."
 
         selected_cards = [current_player.hand[i] for i in card_indices]
         selected_ranks = [card.rank for card in selected_cards]
 
         if len(set(selected_ranks)) != 1:
-            return
+            return "error", "All selected cards must be of the same rank. Please try again."
 
         if self.played_cards and self.card_rank(selected_cards[0]) < self.card_rank(self.played_cards[-1][0]):
-            return
+            return "error", "Cannot play lower ranked cards. Try again or pass."
 
         for index in sorted(card_indices, reverse=True):
             current_player.play_card(index)
@@ -67,26 +67,34 @@ class Trick:
         if not current_player.hand:
             self.finished_players.append(current_player)
             self.active_players.remove(current_player_index)
+
+            # Adjust the current player index if necessary
+            if self.current_player_index >= len(self.active_players):
+                self.current_player_index = 0
+
             # End the trick and start a new one with the next player
             self.played_cards.clear()
             self.current_trick_size = 0
             if len(self.active_players) > 1:
                 self.next_player()
-                return self.finished_players
-            # else:
-            #     return
+                return "next", f"\n{self.players[self.active_players[self.current_player_index]].name} starts a new trick."
+
+            return "end", None
 
         if len(self.played_cards) > 1 and selected_ranks[0] == self.played_cards[-2][0].rank:
             self.skip_next_player = True
+            self.next_player()  # Move to the next player after skipping
+            return "skip", f"The next player will be skipped because {current_player.name} played a matching rank!"
 
         self.next_player()
-        return self.finished_players
+        return "next", None
 
     async def pass_turn(self):
         self.next_player()
         
     def next_player(self):
         self.current_player_index = (self.current_player_index + 1) % len(self.active_players)
+        
         if self.skip_next_player:
             self.current_player_index = (self.current_player_index + 1) % len(self.active_players)
             self.skip_next_player = False

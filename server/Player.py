@@ -28,3 +28,10 @@ class Player:
         except IndexError as e:
             print(e)
             return None
+        
+    def to_dict(self):
+        # Convert player object to dictionary
+        return {
+            'name': self.name,
+            'hand': [card.to_dict() for card in self.hand]  # Assuming card objects also have a `to_dict` method
+        }
